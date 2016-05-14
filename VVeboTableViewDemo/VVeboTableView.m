@@ -47,12 +47,19 @@
 - (void)drawCell:(VVeboTableViewCell *)cell withIndexPath:(NSIndexPath *)indexPath{
     NSDictionary *data = [datas objectAtIndex:indexPath.row];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    // 清除数据
     [cell clear];
+    // 加载数据
     cell.data = data;
+    
+    // 这个判读和scrollViewWillEndDragging配合使用，如果needLoad数组有数据，说明是快速滚动，中间的Cell就不要绘制了
     if (needLoadArr.count>0&&[needLoadArr indexOfObject:indexPath]==NSNotFound) {
+        // 清除数据
         [cell clear];
         return;
     }
+    
+    // 滚到顶部，Cell也不加载数据，直接返回
     if (scrollToToping) {
         return;
     }
@@ -72,36 +79,57 @@
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath{
     NSDictionary *dict = datas[indexPath.row];
     float height = [dict[@"frame"] CGRectValue].size.height;
+//    NSLog(@"%f", height);
     return height;
 }
 
+// 开始滚动，把needLoadArr清空
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView{
     [needLoadArr removeAllObjects];
 }
 
-//按需加载 - 如果目标行与当前行相差超过指定行数，只在目标滚动范围的前后指定3行加载。
+// 按需加载 - 如果目标行与当前行相差超过指定行数，只在目标滚动范围的前后指定3行加载。
+// 准备停止滚动时，触发方法
+// 按需加载的意思是，当快速滚动时，中间滚动过的Cell就不要加载数据的了，当快要停止滚动到达目标范围Cell时，在前后指定3行加载
+// 不是快速滚动，这个方法就不会加载三行
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset{
+    // 获取将要滚动到目标点的 Cell的 IndexPath
     NSIndexPath *ip = [self indexPathForRowAtPoint:CGPointMake(0, targetContentOffset->y)];
+    // 获取没滚动前显示的所有Cell的IndexPath
     NSIndexPath *cip = [[self indexPathsForVisibleRows] firstObject];
+    
+    // 指定行数
     NSInteger skipCount = 8;
+    
+    // 如果目标IndexPath和当前显示的IndexPath相差超过8（因为可能向上或向下滚动，所有取绝对值labs）
     if (labs(cip.row-ip.row)>skipCount) {
+        // 获取目标范围要显示的IndexPath数组
         NSArray *temp = [self indexPathsForRowsInRect:CGRectMake(0, targetContentOffset->y, self.width, self.height)];
         NSMutableArray *arr = [NSMutableArray arrayWithArray:temp];
+        
+        // 向上
         if (velocity.y<0) {
+            // 快到目标滚动范围，在范围的底部多加载3行数据来显示，滚到目标范围后，那3行可能超出了屏幕范围
             NSIndexPath *indexPath = [temp lastObject];
+            // 不要超过总数据范围（超过总数据范围不太可能发生）
             if (indexPath.row+3<datas.count) {
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row+1 inSection:0]];
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row+2 inSection:0]];
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row+3 inSection:0]];
             }
-        } else {
+        }
+        // 向下
+        else {
+            // 在目标滚动范围的顶部添加3行数据
             NSIndexPath *indexPath = [temp firstObject];
+            // 确保row > 3，否则越界了
             if (indexPath.row>3) {
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row-3 inSection:0]];
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row-2 inSection:0]];
                 [arr addObject:[NSIndexPath indexPathForRow:indexPath.row-1 inSection:0]];
             }
         }
+        // 添加到needLoad数组
         [needLoadArr addObjectsFromArray:arr];
     }
 }
@@ -121,8 +149,9 @@
     [self loadContent];
 }
 
-//用户触摸时第一时间加载内容
+//用户触摸时第一时间加载内容，防止快速滚动后突然停下来，某些Cell没有draw，显示无内容
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event{
+    // 不是滚动到顶部，清除needLoadArr
     if (!scrollToToping) {
         [needLoadArr removeAllObjects];
         [self loadContent];

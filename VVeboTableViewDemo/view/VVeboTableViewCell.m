@@ -35,6 +35,7 @@
         postBGView = [[UIImageView alloc] initWithFrame:CGRectZero];
         [self.contentView insertSubview:postBGView atIndex:0];
         
+        // 头像
         avatarView = [UIButton buttonWithType:UIButtonTypeCustom];//[[VVeboAvatarView alloc] initWithFrame:avatarRect];
         avatarView.frame = CGRectMake(SIZE_GAP_LEFT, SIZE_GAP_TOP, SIZE_AVATAR, SIZE_AVATAR);
         avatarView.backgroundColor = [UIColor colorWithRed:250/255.0 green:250/255.0 blue:250/255.0 alpha:1];
@@ -43,6 +44,7 @@
         avatarView.clipsToBounds = YES;
         [self.contentView addSubview:avatarView];
         
+        // 为了让头像是圆的，在外层套了一层遮挡，这就不会使用系统绘制圆角，减少离屏渲染
         cornerImage = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, SIZE_AVATAR+5, SIZE_AVATAR+5)];
         cornerImage.center = avatarView.center;
         cornerImage.image = [UIImage imageNamed:@"corner_circle@2x.png"];
@@ -122,15 +124,22 @@
     NSInteger flag = drawColorFlag;
     drawed = YES;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        // 获取某个Cell的frame
         CGRect rect = [_data[@"frame"] CGRectValue];
+        // 开启绘制
         UIGraphicsBeginImageContextWithOptions(rect.size, YES, 0);
         CGContextRef context = UIGraphicsGetCurrentContext();
         [[UIColor colorWithRed:250/255.0 green:250/255.0 blue:250/255.0 alpha:1] set];
+        // 绘制整个Cell背景色
         CGContextFillRect(context, rect);
+        // 如果有转发内容
         if ([_data valueForKey:@"subData"]) {
+            // 绘制转发内容的背景色
             [[UIColor colorWithRed:243/255.0 green:243/255.0 blue:243/255.0 alpha:1] set];
             CGRect subFrame = [_data[@"subData"][@"frame"] CGRectValue];
             CGContextFillRect(context, subFrame);
+            
+            // 绘制自己微博和转发微博的分隔线
             [[UIColor colorWithRed:200/255.0 green:200/255.0 blue:200/255.0 alpha:1] set];
             CGContextFillRect(context, CGRectMake(0, subFrame.origin.y, rect.size.width, .5));
         }
@@ -139,12 +148,14 @@
             float leftX = SIZE_GAP_LEFT+SIZE_AVATAR+SIZE_GAP_BIG;
             float x = leftX;
             float y = (SIZE_AVATAR-(SIZE_FONT_NAME+SIZE_FONT_SUBTITLE+6))/2-2+SIZE_GAP_TOP+SIZE_GAP_SMALL-5;
+            // 字符串 name绘制
             [_data[@"name"] drawInContext:context withPosition:CGPointMake(x, y) andFont:FontWithSize(SIZE_FONT_NAME)
                              andTextColor:[UIColor colorWithRed:106/255.0 green:140/255.0 blue:181/255.0 alpha:1]
                                 andHeight:rect.size.height];
             y += SIZE_FONT_NAME+5;
             float fromX = leftX;
             float size = [UIScreen screenWidth]-leftX;
+            // 时间和来自XX 绘制
             NSString *from = [NSString stringWithFormat:@"%@  %@", _data[@"time"], _data[@"from"]];
             [from drawInContext:context withPosition:CGPointMake(fromX, y) andFont:FontWithSize(SIZE_FONT_SUBTITLE)
                    andTextColor:[UIColor colorWithRed:178/255.0 green:178/255.0 blue:178/255.0 alpha:1]
@@ -193,23 +204,35 @@
                      andTextColor:[UIColor colorWithRed:178/255.0 green:178/255.0 blue:178/255.0 alpha:.5]
                         andHeight:rect.size.height];
             
+            // 如果有转发内容，绘制转发内容和toolbar之间的线
             if ([_data valueForKey:@"subData"]) {
                 [[UIColor colorWithRed:200/255.0 green:200/255.0 blue:200/255.0 alpha:1] set];
                 CGContextFillRect(context, CGRectMake(0, rect.size.height-30.5, rect.size.width, .5));
             }
         }
         
+        // 获取绘制图片
         UIImage *temp = UIGraphicsGetImageFromCurrentImageContext();
+        // 结束绘制
         UIGraphicsEndImageContext();
+        // 回到主线程
         dispatch_async(dispatch_get_main_queue(), ^{
+            // 判断是否随机数标志位
             if (flag==drawColorFlag) {
+                // 设置图片
                 postBGView.frame = rect;
                 postBGView.image = nil;
                 postBGView.image = temp;
             }
         });
     });
+    
+    // 前面绘制了 背景色，分隔线，某些文字。就是绘制没有生成控件的内容
+    
+    // 这是有控件的，对控件赋值
     [self drawText];
+    
+    // 加载scrollView内容
     [self loadThumb];
 }
 
